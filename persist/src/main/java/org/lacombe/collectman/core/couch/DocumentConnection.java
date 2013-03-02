@@ -5,6 +5,7 @@ import com.google.common.base.Throwables;
 import com.google.gson.Gson;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
+import com.google.inject.name.Named;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpDelete;
@@ -23,6 +24,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.lacombe.collectman.inject.CouchKeys.*;
 
 /**
  * Created with IntelliJ IDEA.
@@ -33,42 +35,48 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class DocumentConnection {
     private static final Logger LOG = LoggerFactory.getLogger(DocumentConnection.class);
-    public static final String DB_NAME = "collectman";
-
 
     private HttpClient httpclient;
     private Gson gson;
     private DbResponseExtractor dbResponseExtractor;
     private final Joiner pathJoiner;
+    private String dbName;
 
     private String uuid;
     private final Provider<URIBuilder> uriBuilderProvider;
 
 
     @Inject
-    public DocumentConnection(Gson gson, HttpClient httpclient, Provider<URIBuilder> uriBuilderProvider, DbResponseExtractor dbResponseExtractor, @Path Joiner pathJoiner) {
+    public DocumentConnection(Gson gson, HttpClient httpclient, Provider<URIBuilder> uriBuilderProvider,
+                              DbResponseExtractor dbResponseExtractor, @Path Joiner pathJoiner, @Named(COUCH_DB_NAME) String dbName) {
         this.gson = gson;
         this.httpclient = httpclient;
         this.uriBuilderProvider = uriBuilderProvider;
         this.dbResponseExtractor = dbResponseExtractor;
         this.pathJoiner = pathJoiner;
+        this.dbName=dbName;
     }
 
-    String nextUUID() throws URISyntaxException, IOException {
+    public String nextUUID()  {
+        try {
         URIBuilder builder = uriBuilderProvider.get();
         builder.setPath("/_uuids");
 
         HttpGet httpGet = new HttpGet(builder.build());
         HttpResponse response = httpclient.execute(httpGet);
-        String uuid = dbResponseExtractor.extractUuidFrom(response);
 
-        return uuid;
+        return dbResponseExtractor.extractUuidFrom(response);
+    } catch (URISyntaxException | IOException e) {
+
+        Throwables.propagate(e);
+    }
+    throw new IllegalStateException("unreachable code");
     }
 
     public boolean documentExists() {
         try {
             URIBuilder builder = uriBuilderProvider.get();
-            builder.setPath(pathJoiner.join("", DB_NAME));
+            builder.setPath(pathJoiner.join("", dbName));
             URI uri = builder.build();
             HttpGet get = new HttpGet(uri);
             HttpResponse response = httpclient.execute(get);
@@ -78,12 +86,12 @@ public class DocumentConnection {
 
             Throwables.propagate(e);
         }
-        return false;
+        throw new IllegalStateException("unreachable code");
     }
 
     public void createDatabase() throws URISyntaxException, IOException {
         uuid = nextUUID();
-        putJson(pathJoiner.join("", DB_NAME), uuid);
+        putJson(pathJoiner.join("", dbName), uuid);
     }
 
     private PutDetails putJson(String path, String json) throws URISyntaxException, IOException {
@@ -120,16 +128,17 @@ public class DocumentConnection {
     }
 
     private String contentPath() {
-        return pathJoiner.join("", DB_NAME, uuid);
+        return pathJoiner.join("", dbName, uuid);
     }
 
     public void deleteDatabase() {
-        String path = pathJoiner.join("", DB_NAME);
+        String path = pathJoiner.join("", dbName);
         LOG.info("deleting database {}", path);
         try {
             HttpDelete delete = new HttpDelete(uriBuilderProvider.get().setPath(path).build());
             HttpResponse response = httpclient.execute(delete);
             StatusUtils.checkHttpStatusIsOkIn(response);
+            delete.releaseConnection();
         } catch (URISyntaxException | IOException e) {
 
             Throwables.propagate(e);

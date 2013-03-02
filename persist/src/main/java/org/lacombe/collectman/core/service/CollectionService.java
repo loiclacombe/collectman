@@ -5,7 +5,6 @@ import org.lacombe.collectman.beans.Book;
 import org.lacombe.collectman.beans.BookCollection;
 import org.lacombe.collectman.core.couch.DocumentConnection;
 import org.lacombe.collectman.core.couch.beans.PutDetails;
-import org.lacombe.collectman.inject.Collectman;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -48,7 +47,10 @@ public class CollectionService implements AutoCloseable {
 
     public PutDetails put(Book book) {
         BookCollection books = new BookCollection();
+        books.setId(documentConnection.nextUUID());
+
         books.getBooks().add(book);
+        book.setId(documentConnection.nextUUID());
 
         try {
             return documentConnection.putObject(books);

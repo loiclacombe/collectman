@@ -1,6 +1,7 @@
 package org.lacombe.collectman.beans;
 
 
+import com.google.gson.annotations.SerializedName;
 import org.joda.time.DateTime;
 
 import java.util.List;
@@ -13,14 +14,22 @@ import java.util.List;
  * To change this template use File | Settings | File Templates.
  */
 public class Book {
+    @SerializedName("_id")
+    private String id;
 
     private DateTime dateCreated;
 
     private String title;
 
-
     private List<String> tags;
 
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
 
     public DateTime getDateCreated() {
         return dateCreated;
